@@ -41,6 +41,19 @@ class AdminShareLinkTest(BaseTestCase):
         link = FileShare.objects.get(token=token)
         link.delete()
 
+    def test_get_file_share_links(self):
+        self.login_as(self.admin)
+        token = self._add_file_share_link()
+
+        url = reverse('api-v2.1-admin-share-links') + '?email=%s' % self.user.username
+        resp = self.client.get(url)
+
+        json_resp = json.loads(resp.content)
+        self.assertEqual(200, resp.status_code)
+        assert len(json_resp) > 0
+
+        self._remove_share_link(token)
+
     def test_get_file_share_link_info_by_token(self):
         self.login_as(self.admin)
         token = self._add_file_share_link()

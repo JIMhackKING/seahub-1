@@ -33,8 +33,6 @@ class AdminUsersTest(BaseTestCase):
 
         json_resp = json.loads(resp.content)
 
-        assert json_resp['total_count'] > 0
-        assert len(json_resp['data']) == json_resp['total_count']
 
         assert json_resp['data'][0].has_key('email')
         assert json_resp['data'][0].has_key('name')
@@ -382,3 +380,24 @@ class AdminUserTest(BaseTestCase):
         data = {"email": self.tmp_email, "reference_id": ''}
         resp = self.client.put(self.url, json.dumps(data),
                 'application/json')
+
+
+class AdminAdminUsersTest(BaseTestCase):
+
+    def setUp(self):
+        self.url = reverse('api-v2.1-admin-admin-users')
+        self.tmp_email = '%s@email.com' % randstring(10)
+
+    def tearDown(self):
+        self.remove_user(self.tmp_email)
+
+    def test_get_admin_users(self):
+        self.login_as(self.admin)
+
+        resp = self.client.get(self.url)
+        self.assertEqual(200, resp.status_code)
+
+        json_resp = json.loads(resp.content)
+
+        for admin_user in json_resp['admin_users']:
+            assert admin_user['is_staff'] == True

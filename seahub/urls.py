@@ -110,10 +110,11 @@ from seahub.api2.endpoints.admin.statistics import (
 )
 from seahub.api2.endpoints.admin.devices import AdminDevices
 from seahub.api2.endpoints.admin.device_errors import AdminDeviceErrors
-from seahub.api2.endpoints.admin.users import AdminUsers, AdminUser
+from seahub.api2.endpoints.admin.users import AdminUsers, AdminUser, AdminUserPassword, AdminAdminUsers
 from seahub.api2.endpoints.admin.device_trusted_ip import AdminDeviceTrustedIP
 from seahub.api2.endpoints.admin.libraries import AdminLibraries, AdminLibrary
 from seahub.api2.endpoints.admin.library_dirents import AdminLibraryDirents, AdminLibraryDirent
+from seahub.api2.endpoints.admin.libraries_share_in import AdminLibrariesShareIn
 from seahub.api2.endpoints.admin.system_library import AdminSystemLibrary, \
         AdminSystemLibraryUploadLink
 from seahub.api2.endpoints.admin.default_library import AdminDefaultLibrary
@@ -123,11 +124,11 @@ from seahub.api2.endpoints.admin.group_libraries import AdminGroupLibraries, Adm
 from seahub.api2.endpoints.admin.group_members import AdminGroupMembers, AdminGroupMember
 from seahub.api2.endpoints.admin.shares import AdminShares
 from seahub.api2.endpoints.admin.share_links import AdminShareLink, \
-        AdminShareLinkDownload, AdminShareLinkCheckPassword, \
+        AdminShareLinks, AdminShareLinkDownload, AdminShareLinkCheckPassword, \
         AdminShareLinkDirents
-from seahub.api2.endpoints.admin.upload_links import AdminUploadLink, \
+from seahub.api2.endpoints.admin.upload_links import AdminUploadLink, AdminUploadLinks, \
         AdminUploadLinkUpload, AdminUploadLinkCheckPassword
-from seahub.api2.endpoints.admin.users_batch import AdminUsersBatch
+from seahub.api2.endpoints.admin.users_batch import AdminUsersBatch, AdminAdminUsersBatch
 from seahub.api2.endpoints.admin.operation_logs import AdminOperationLogs
 from seahub.api2.endpoints.admin.organizations import AdminOrganizations, AdminOrganization
 from seahub.api2.endpoints.admin.org_users import AdminOrgUsers, AdminOrgUser
@@ -462,6 +463,8 @@ urlpatterns = [
     # [^...] Matches any single character not in brackets
     # + Matches between one and unlimited times, as many times as possible
     url(r'^api/v2.1/admin/users/(?P<email>[^/]+@[^/]+)/$', AdminUser.as_view(), name='api-v2.1-admin-user'),
+    url(r'^api/v2.1/admin/users/(?P<email>[^/]+@[^/]+)/reset-password/$', AdminUserPassword.as_view(), name='api-v2.1-admin-user-reset-password'),
+    url(r'^api/v2.1/admin/admin-users/$', AdminAdminUsers.as_view(), name='api-v2.1-admin-admin-users'),
 
     ## admin::devices
     url(r'^api/v2.1/admin/devices/$', AdminDevices.as_view(), name='api-v2.1-admin-devices'),
@@ -471,6 +474,7 @@ urlpatterns = [
     ## admin::libraries
     url(r'^api/v2.1/admin/libraries/$', AdminLibraries.as_view(), name='api-v2.1-admin-libraries'),
     url(r'^api/v2.1/admin/libraries/(?P<repo_id>[-0-9a-f]{36})/$', AdminLibrary.as_view(), name='api-v2.1-admin-library'),
+    url(r'^api/v2.1/admin/libraries/share-in/$', AdminLibrariesShareIn.as_view(), name='api-v2.1-admin-libraries-share-in'),
     url(r'^api/v2.1/admin/libraries/(?P<repo_id>[-0-9a-f]{36})/history-limit/$', AdminLibraryHistoryLimit.as_view(), name="api-v2.1-admin-library-history-limit"),
     url(r'^api/v2.1/admin/libraries/(?P<repo_id>[-0-9a-f]{36})/dirents/$', AdminLibraryDirents.as_view(), name='api-v2.1-admin-library-dirents'),
     url(r'^api/v2.1/admin/libraries/(?P<repo_id>[-0-9a-f]{36})/dirent/$', AdminLibraryDirent.as_view(), name='api-v2.1-admin-library-dirent'),
@@ -504,6 +508,7 @@ urlpatterns = [
     url(r'^api/v2.1/admin/admin-login-logs/$', AdminLoginLogs.as_view(), name='api-v2.1-admin-admin-login-logs'),
 
     ## admin::share-links
+    url(r'^api/v2.1/admin/share-links/$', AdminShareLinks.as_view(), name='api-v2.1-admin-share-links'),
     url(r'^api/v2.1/admin/share-links/(?P<token>[a-f0-9]+)/$', AdminShareLink.as_view(), name='api-v2.1-admin-share-link'),
     url(r'^api/v2.1/admin/share-links/(?P<token>[a-f0-9]+)/download/$',
             AdminShareLinkDownload.as_view(), name='api-v2.1-admin-share-link-download'),
@@ -513,6 +518,7 @@ urlpatterns = [
             AdminShareLinkDirents.as_view(), name='api-v2.1-admin-share-link-dirents'),
 
     ## admin::upload-links
+    url(r'^api/v2.1/admin/upload-links/$', AdminUploadLinks.as_view(), name='api-v2.1-admin-upload-links'),
     url(r'^api/v2.1/admin/upload-links/(?P<token>[a-f0-9]+)/$', AdminUploadLink.as_view(), name='api-v2.1-admin-upload-link'),
     url(r'^api/v2.1/admin/upload-links/(?P<token>[a-f0-9]+)/upload/$',
             AdminUploadLinkUpload.as_view(), name='api-v2.1-admin-upload-link-upload'),
@@ -520,6 +526,7 @@ urlpatterns = [
             AdminUploadLinkCheckPassword.as_view(), name='api-v2.1-admin-upload-link-check-password'),
 
     ## admin::users
+    url(r'^api/v2.1/admin/admin-users/batch/$', AdminAdminUsersBatch.as_view(), name='api-v2.1-admin-users-batch'),
     url(r'^api/v2.1/admin/users/batch/$', AdminUsersBatch.as_view(), name='api-v2.1-admin-users-batch'),
 
     ## admin::admin-role
@@ -636,7 +643,7 @@ urlpatterns = [
     url(r'^useradmin/removeadmin/(?P<email>[^/]+)/$', user_remove_admin, name='user_remove_admin'),
     url(r'^useradmin/info/(?P<email>[^/]+)/$', user_info, name='user_info'),
     url(r'^useradmin/toggle_status/(?P<email>[^/]+)/$', user_toggle_status, name='user_toggle_status'),
-    url(r'^useradmin/toggle_role/(?P<email>[^/]+)/$', user_toggle_role, name='user_toggle_role'),
+    url(r'^useradmin/toggle_roleuseradmin/password/res/(?P<email>[^/]+)/$', user_toggle_role, name='user_toggle_role'),
     url(r'^useradmin/(?P<email>[^/]+)/set_quota/$', user_set_quota, name='user_set_quota'),
     url(r'^sys/termsadmin/$', sys_terms_admin, name='sys_terms_admin'),
     url(r'^sys/termsadmin/delete/(?P<pk>[^/]+)/$', sys_delete_terms, name='sys_delete_terms'),
@@ -649,6 +656,10 @@ urlpatterns = [
     url(r'^sys/desktop-devices/$', sysadmin_react_fake_view, name="sys_desktop_devices"),
     url(r'^sys/mobile-devices/$', sysadmin_react_fake_view, name="sys_mobile_devices"),
     url(r'^sys/device-errors/$', sysadmin_react_fake_view, name="sys_device_errors"),
+    url(r'^sys/users/$', sysadmin_react_fake_view, name="sys_users"),
+    url(r'^sys/users-all/$', sysadmin_react_fake_view, name="sys_users_all"),
+    url(r'^sys/users-admin/$', sysadmin_react_fake_view, name="sys_users_admin"),
+    url(r'^sys/user-info/(?P<email>[^/]+)/$', sysadmin_react_fake_view, name="sys_users"),
     url(r'^sys/work-weixin/departments/$', sysadmin_react_fake_view, name="sys_work_weixin_departments"),
 
     url(r'^client-login/$', client_token_login, name='client_token_login'),

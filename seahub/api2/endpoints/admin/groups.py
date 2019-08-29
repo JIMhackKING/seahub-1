@@ -66,6 +66,40 @@ class AdminGroups(APIView):
 
             return Response({"name": group_name, "groups": return_results})
 
+        # return all groups user joined
+        email = request.GET.get('email', '')
+        if email:
+            if not is_valid_username(email):
+                error_msg = 'email invalid.'
+                return api_error(status.HTTP_400_BAD_REQUEST, error_msg)
+            else:
+                groups_info = []
+                try:
+                    groups = ccnet_api.get_personal_groups_by_user(email)
+                except Exception as e:
+                    logger.error(e)
+                    error_msg = 'Internal Server Error'
+                    return api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, error_msg)
+
+                for g in groups:
+                    group_info = get_group_info(g.id)
+                    groups_info.append(group_info)
+
+                    try:
+                        is_group_staff = ccnet_api.check_group_staff(g.id, email)
+                    except Exception as e:
+                        logger.error(e)
+                        error_msg = 'Internal Server Error'
+                        return api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, error_msg)
+
+                    if email == g.creator_name:
+                        group_info['role'] = 'owner'
+                    elif is_group_staff:
+                        group_info['role'] = 'admin'
+                    else:
+                        group_info['role'] = 'member'
+                return Response(groups_info)
+
         try:
             current_page = int(request.GET.get('page', '1'))
             per_page = int(request.GET.get('per_page', '100'))

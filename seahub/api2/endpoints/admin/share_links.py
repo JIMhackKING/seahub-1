@@ -24,7 +24,7 @@ from seahub.base.templatetags.seahub_tags import email2nickname, \
         email2contact_email
 from seahub.share.models import FileShare
 from seahub.utils import gen_file_get_url, gen_dir_zip_download_url, \
-        is_windows_operating_system, gen_shared_link
+        is_windows_operating_system, gen_shared_link, is_valid_email
 from seahub.utils.timeutils import timestamp_to_isoformat_timestr, \
         datetime_to_isoformat_timestr
 from seahub.views.file import send_file_access_msg
@@ -107,6 +107,52 @@ class AdminShareLink(APIView):
 
         link_info = get_share_link_info(sharelink)
         return Response(link_info)
+
+    def delete(self, request, token):
+        """ Remove a special share link.
+
+        Permission checking:
+        1. only admin can perform this action.
+        """
+        try:
+            fs = FileShare.objects.get(token=token)
+        except FileShare.DoesNotExist:
+            return Response({'success': True})
+
+        try:
+            fs.delete()
+        except Exception as e:
+            logger.error(e)
+            error_msg = 'Internal Server Error'
+            return api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, error_msg)
+
+        return Response({'success': True})
+
+
+class AdminShareLinks(APIView):
+    authentication_classes = (TokenAuthentication, SessionAuthentication)
+    permission_classes = (IsAdminUser,)
+    throttle_classes = (UserRateThrottle,)
+
+    def get(self, request):
+        """ Get all shared download links of a user.
+
+        Permission checking:
+        1. only admin can perform this action.
+        """
+        email = request.GET.get('email', '')
+        if is_valid_email(email):
+            fileshares = FileShare.objects.filter(username=email)
+        else:
+            error_msg = 'email invalid.'
+            return api_error(status.HTTP_400_BAD_REQUEST, error_msg)
+
+        links_info = []
+        for fs in fileshares:
+            link_info = get_share_link_info(fs)
+            links_info.append(link_info)
+
+        return Response(links_info)
 
 
 class AdminShareLinkDirents(APIView):

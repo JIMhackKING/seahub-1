@@ -76,7 +76,7 @@ import seahub.settings as settings
 from seahub.settings import INIT_PASSWD, SITE_ROOT, \
     SEND_EMAIL_ON_ADDING_SYSTEM_MEMBER, SEND_EMAIL_ON_RESETTING_USER_PASSWD, \
     ENABLE_SYS_ADMIN_VIEW_REPO, ENABLE_GUEST_INVITATION, \
-    ENABLE_LIMIT_IPADDRESS
+    ENABLE_LIMIT_IPADDRESS, ENABLE_TWO_FACTOR_AUTH
 try:
     from seahub.settings import ENABLE_TRIAL_ACCOUNT
 except:
@@ -138,17 +138,21 @@ def sysadmin(request):
 
 @login_required
 @sys_staff_required
-def sysadmin_react_fake_view(request):
+def sysadmin_react_fake_view(request, **kwargs):
 
     return render(request, 'sysadmin/sysadmin_react_app.html', {
         'constance_enabled': dj_settings.CONSTANCE_ENABLED,
         'multi_tenancy': MULTI_TENANCY,
         'multi_institution': getattr(dj_settings, 'MULTI_INSTITUTION', False),
+        'is_email_configured': IS_EMAIL_CONFIGURED,
+        'send_email_on_resetting_user_passwd': SEND_EMAIL_ON_RESETTING_USER_PASSWD,
+        'send_email_on_adding_system_member': SEND_EMAIL_ON_ADDING_SYSTEM_MEMBER,
         'sysadmin_extra_enabled': ENABLE_SYSADMIN_EXTRA,
         'enable_guest_invitation': ENABLE_GUEST_INVITATION,
         'enable_terms_and_conditions': config.ENABLE_TERMS_AND_CONDITIONS,
         'enable_file_scan': ENABLE_FILE_SCAN,
         'enable_work_weixin': ENABLE_WORK_WEIXIN,
+        'enable_two_factor_auth': ENABLE_TWO_FACTOR_AUTH,
     })
 
 @login_required

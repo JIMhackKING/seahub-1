@@ -6,7 +6,6 @@ from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
-from django.template.defaultfilters import filesizeformat
 from django.utils.translation import ugettext as _
 from seaserv import ccnet_api, seafile_api
 
@@ -19,12 +18,10 @@ from seahub.views import get_system_default_repo_id
 from seahub.admin_log.signals import admin_operation
 from seahub.admin_log.models import REPO_CREATE, REPO_DELETE, REPO_TRANSFER
 from seahub.share.models import FileShare, UploadLinkShare
-from seahub.base.templatetags.seahub_tags import email2nickname, email2contact_email
-from seahub.group.utils import is_group_member, group_id_to_name
-from seahub.utils.repo import get_related_users_by_repo, normalize_repo_status_code, normalize_repo_status_str
+from seahub.group.utils import is_group_member
+from seahub.utils.repo import get_related_users_by_repo, normalize_repo_status_str
 from seahub.utils import is_valid_dirent_name, is_valid_email
-
-from seahub.api2.endpoints.group_owned_libraries import get_group_id_by_repo_owner
+from seahub.api2.endpoints.admin.utils import get_repo_info
 
 try:
     from seahub.settings import MULTI_TENANCY
@@ -33,35 +30,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-def get_repo_info(repo):
 
-    repo_owner = seafile_api.get_repo_owner(repo.repo_id)
-    if not repo_owner:
-        try:
-            org_repo_owner = seafile_api.get_org_repo_owner(repo.repo_id)
-        except Exception:
-            org_repo_owner = None
-
-    owner = repo_owner or org_repo_owner or ''
-
-    result = {}
-    result['id'] = repo.repo_id
-    result['name'] = repo.repo_name
-    result['owner'] = owner
-    result['owner_email'] = owner
-    result['owner_name'] = email2nickname(owner)
-    result['owner_contact_email'] = email2contact_email(owner)
-    result['size'] = repo.size
-    result['size_formatted'] = filesizeformat(repo.size)
-    result['encrypted'] = repo.encrypted
-    result['file_count'] = repo.file_count
-    result['status'] = normalize_repo_status_code(repo.status)
-
-    if '@seafile_group' in owner:
-        group_id = get_group_id_by_repo_owner(owner)
-        result['group_name'] = group_id_to_name(group_id)
-
-    return result
 
 
 class AdminLibraries(APIView):

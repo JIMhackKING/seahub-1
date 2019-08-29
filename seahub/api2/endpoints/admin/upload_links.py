@@ -18,7 +18,7 @@ from seahub.api2.throttling import UserRateThrottle
 
 from seahub.base.templatetags.seahub_tags import email2nickname, \
         email2contact_email
-from seahub.utils import gen_file_upload_url, gen_shared_upload_link
+from seahub.utils import gen_file_upload_url, gen_shared_upload_link, is_valid_email
 from seahub.utils.timeutils import datetime_to_isoformat_timestr
 
 from seahub.share.models import UploadLinkShare
@@ -85,6 +85,52 @@ class AdminUploadLink(APIView):
 
         link_info = get_upload_link_info(uploadlink)
         return Response(link_info)
+
+    def delete(self, request, token):
+        """ Remove a special share link.
+
+        Permission checking:
+        1. only admin can perform this action.
+        """
+        try:
+            fs = UploadLinkShare.objects.get(token=token)
+        except UploadLinkShare.DoesNotExist:
+            return Response({'success': True})
+
+        try:
+            fs.delete()
+        except Exception as e:
+            logger.error(e)
+            error_msg = 'Internal Server Error'
+            return api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, error_msg)
+
+        return Response({'success': True})
+
+
+class AdminUploadLinks(APIView):
+    authentication_classes = (TokenAuthentication, SessionAuthentication)
+    permission_classes = (IsAdminUser,)
+    throttle_classes = (UserRateThrottle,)
+
+    def get(self, request):
+        """ Get all shared upload links of a user.
+
+        Permission checking:
+        1. only admin can perform this action.
+        """
+        email = request.GET.get('email', '')
+        if is_valid_email(email):
+            uploadhares = UploadLinkShare.objects.filter(username=email)
+        else:
+            error_msg = 'email invalid.'
+            return api_error(status.HTTP_400_BAD_REQUEST, error_msg)
+
+        links_info = []
+        for fs in uploadhares:
+            link_info = get_upload_link_info(fs)
+            links_info.append(link_info)
+
+        return Response(links_info)
 
 
 class AdminUploadLinkUpload(APIView):

@@ -1,5 +1,8 @@
 # Copyright (c) 2012-2016 Seafile Ltd.
 import logging
+from types import FunctionType
+from constance import config
+
 
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
@@ -15,21 +18,23 @@ from seaserv import seafile_api, ccnet_api
 from seahub.api2.authentication import TokenAuthentication
 from seahub.api2.throttling import UserRateThrottle
 from seahub.api2.utils import api_error, to_python_boolean
-from seahub.api2.endpoints.utils import generate_links_header_for_paginator
+from seahub.api2.endpoints.admin.utils import get_user_info
 
-from seahub.settings import SEND_EMAIL_ON_ADDING_SYSTEM_MEMBER
+from seahub.settings import SEND_EMAIL_ON_ADDING_SYSTEM_MEMBER, INIT_PASSWD, \
+    SEND_EMAIL_ON_RESETTING_USER_PASSWD
+
 from seahub.base.accounts import User
-from seahub.base.templatetags.seahub_tags import email2nickname, \
-        email2contact_email
 from seahub.profile.models import Profile, DetailedProfile
 from seahub.profile.settings import CONTACT_CACHE_TIMEOUT, CONTACT_CACHE_PREFIX
 from seahub.utils import is_valid_username, is_org_context, \
         is_pro_version, normalize_cache_key, is_valid_email, \
         IS_EMAIL_CONFIGURED, send_html_email, get_site_name
-from seahub.utils.timeutils import timestamp_to_isoformat_timestr
 from seahub.utils.file_size import get_file_size_unit
-from seahub.role_permissions.utils import get_available_roles
+from seahub.constants import DEFAULT_ADMIN
+from seahub.role_permissions.models import AdminRole
+from seahub.role_permissions.utils import get_available_roles, get_available_admin_roles
 from seahub.utils.licenseparse import user_number_over_limit
+from seahub.options.models import UserOptions
 
 
 logger = logging.getLogger(__name__)
@@ -51,6 +56,12 @@ def update_user_info(request, user):
     if is_active:
         is_active = to_python_boolean(is_active)
         user.is_active = is_active
+        if user.is_active:
+            try:
+                send_html_email(_(u'Your account on %s is activated') % get_site_name(),
+                                'sysadmin/user_activation_email.html', {'username': user.email}, None, [user.email])
+            except Exception as e:
+                logger.error(e)
 
     # update user
     user.save()
@@ -105,35 +116,45 @@ def update_user_info(request, user):
         else:
             seafile_api.set_user_quota(email, quota_total)
 
-def get_user_info(email):
+class AdminAdminUsers(APIView):
 
-    user = User.objects.get(email=email)
-    d_profile = DetailedProfile.objects.get_detailed_profile_by_user(email)
-    profile = Profile.objects.get_profile_by_user(email)
+    authentication_classes = (TokenAuthentication, SessionAuthentication)
+    permission_classes = (IsAdminUser, )
+    throttle_classes = (UserRateThrottle, )
 
-    info = {}
-    info['email'] = email
-    info['name'] = email2nickname(email)
-    info['contact_email'] = profile.contact_email if profile and profile.contact_email else ''
-    info['login_id'] = profile.login_id if profile and profile.login_id else ''
+    def get(self, request):
+        """List all admins from database and ldap imported
+        """
+        try:
+            db_users = ccnet_api.get_emailusers('DB', -1, -1)
+            ldap_imported_users = ccnet_api.get_emailusers('LDAPImport', -1, -1)
+        except Exception as e:
+            logger.error(e)
+            error_msg = 'Internal Server Error'
+            return api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, error_msg)
 
-    info['is_staff'] = user.is_staff
-    info['is_active'] = user.is_active
-    info['create_time'] = user.ctime
-    info['reference_id'] = user.reference_id if user.reference_id else ''
+        admin_users = []
+        for user in db_users + ldap_imported_users:
+            if user.is_staff is True:
+                admin_users.append(user)
 
-    info['department'] = d_profile.department if d_profile else ''
+        admin_users_info = []
+        for user in admin_users:
+            user_info = get_user_info(user.email)
+            try:
+                admin_role = AdminRole.objects.get_admin_role(user.email)
+                user_info['admin_role'] = admin_role.role
+            except AdminRole.DoesNotExist:
+                user_info['admin_role'] = DEFAULT_ADMIN
+            admin_users_info.append(user_info)
 
-    info['quota_total'] = seafile_api.get_user_quota(email)
-    info['quota_usage'] = seafile_api.get_user_self_usage(email)
+        available_admin_roles = get_available_admin_roles()
 
-    info['create_time'] = timestamp_to_isoformat_timestr(user.ctime)
-
-    if is_pro_version():
-        info['role'] = user.role
-
-    return info
-
+        result = {
+            'admin_users': admin_users_info,
+            'available_admin_roles': available_admin_roles
+        }
+        return Response(result)
 
 class AdminUsers(APIView):
 
@@ -153,24 +174,29 @@ class AdminUsers(APIView):
         start = (page - 1) * per_page
         end = page * per_page + 1
         users = ccnet_api.get_emailusers('DB', start, end)
-        total_count = ccnet_api.count_emailusers('DB') + \
-                ccnet_api.count_inactive_emailusers('DB')
+
+        if len(users) == end - start:
+            users = users[:per_page]
+            has_next_page = True
+        else:
+            has_next_page = False
 
         data = []
         for user in users:
             user_info = get_user_info(user.email)
             data.append(user_info)
+        page_info = {
+            'has_next_page': has_next_page,
+            'current_page': page
+        }
+        available_roles = get_available_roles()
 
-        result = {'data': data, 'total_count': total_count}
-        resp = Response(result)
-
-        ## generate `Links` header for paginator
-        base_url = reverse('api-v2.1-admin-users')
-        links_header = generate_links_header_for_paginator(base_url,
-                page, per_page, total_count)
-        resp['Links'] = links_header
-
-        return resp
+        result = {
+            'data': data,
+            'page_info': page_info,
+            'available_roles': available_roles
+        }
+        return Response(result)
 
     def post(self, request):
 
@@ -425,3 +451,50 @@ class AdminUser(APIView):
             return api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, error_msg)
 
         return Response({'success': True})
+
+
+class AdminUserPassword(APIView):
+
+    authentication_classes = (TokenAuthentication, SessionAuthentication)
+    permission_classes = (IsAdminUser, )
+    throttle_classes = (UserRateThrottle, )
+
+    def put(self, request, email):
+        """Reset password for user
+
+        Permission checking:
+        1. only admin can perform this action.
+        """
+
+        if not is_valid_username(email):
+            error_msg = 'email invalid'
+            return api_error(status.HTTP_400_BAD_REQUEST, error_msg)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist as e:
+            logger.error(e)
+            error_msg = 'email invalid.'
+            return api_error(status.HTTP_400_BAD_REQUEST, error_msg)
+
+        if isinstance(INIT_PASSWD, FunctionType):
+            new_password = INIT_PASSWD()
+        else:
+            new_password = INIT_PASSWD
+        user.set_password(new_password)
+        user.save()
+
+        if config.FORCE_PASSWORD_CHANGE:
+            UserOptions.objects.set_force_passwd_change(user.username)
+
+        if IS_EMAIL_CONFIGURED and SEND_EMAIL_ON_RESETTING_USER_PASSWD:
+            c = {'email': email, 'password': new_password}
+            try:
+                send_html_email(_(u'Password has been reset on %s') % get_site_name(),
+                                'sysadmin/user_reset_email.html', c, None, [email])
+            except Exception, e:
+                logger.error(e)
+                error_msg = 'Internal Server Error'
+                return api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, error_msg)
+
+        return Response({'new_password': new_password})

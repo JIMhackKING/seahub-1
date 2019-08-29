@@ -14,15 +14,61 @@ from seaserv import seafile_api
 from seahub.api2.authentication import TokenAuthentication
 from seahub.api2.throttling import UserRateThrottle
 from seahub.api2.utils import api_error
+from seahub.api2.endpoints.admin.utils import get_user_info
 
 from seahub.base.accounts import User
 from seahub.profile.models import Profile
 from seahub.institutions.models import Institution
 from seahub.utils.file_size import get_file_size_unit
+from seahub.utils import string2list, is_valid_username
 from seahub.admin_log.models import USER_DELETE
 from seahub.admin_log.signals import admin_operation
 
 logger = logging.getLogger(__name__)
+
+
+class AdminAdminUsersBatch(APIView):
+    authentication_classes = (TokenAuthentication, SessionAuthentication)
+    throttle_classes = (UserRateThrottle,)
+    permission_classes = (IsAdminUser,)
+
+    def post(self, request):
+        """ Add admin in batch
+        """
+
+        emails = request.data.get('emails', None)
+        if not emails:
+            error_msg = 'emails invalid.'
+            return api_error(status.HTTP_400_BAD_REQUEST, error_msg)
+
+        emails = string2list(emails)
+        new_admin_emails = []
+        emails_not_exist = []
+
+        for email in emails:
+            if not is_valid_username(email):
+                error_msg = 'emails invalid.'
+                return api_error(status.HTTP_400_BAD_REQUEST, error_msg)
+
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                emails_not_exist.append(email)
+                continue
+
+            user.is_staff = True
+            user.save()
+            new_admin_emails.append(email)
+
+        if not new_admin_emails:
+            error_msg = 'User(s) not found.'
+            return api_error(status.HTTP_404_NOT_FOUND, error_msg)
+
+        new_admin_info = []
+        for email in new_admin_emails:
+            new_admin_info.append(get_user_info(email))
+
+        return Response({'new_admin_info': new_admin_info})
 
 
 class AdminUsersBatch(APIView):
