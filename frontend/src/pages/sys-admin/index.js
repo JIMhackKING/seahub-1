@@ -10,6 +10,9 @@ import Info from './info';
 import DesktopDevices from './devices/desktop-devices';
 import MobileDevices from './devices/mobile-devices';
 import DeviceErrors from './devices/devices-errors';
+import UsersAll from './users/users-all';
+import UsersAdmin from './users/users-admin';
+import UserInfo from './users/user-info';
 
 import '../../assets/css/fa-solid.css';
 import '../../assets/css/fa-regular.css';
@@ -68,6 +71,9 @@ class SysAdmin extends React.Component {
             <DesktopDevices path={siteRoot + 'sys/desktop-devices'} />
             <MobileDevices path={siteRoot + 'sys/mobile-devices'} />
             <DeviceErrors path={siteRoot + 'sys/device-errors'} />
+            <UsersAll path={siteRoot + 'sys/users-all'} />
+            <UsersAdmin path={siteRoot + 'sys/users-admin'} />
+            <UserInfo path={siteRoot + 'sys/user-info/:email'} />
             <FileScanRecords
               path={siteRoot + 'sys/file-scan-records'}
               currentTab={currentTab} 

@@ -649,6 +649,10 @@ urlpatterns = [
     url(r'^sys/desktop-devices/$', sysadmin_react_fake_view, name="sys_desktop_devices"),
     url(r'^sys/mobile-devices/$', sysadmin_react_fake_view, name="sys_mobile_devices"),
     url(r'^sys/device-errors/$', sysadmin_react_fake_view, name="sys_device_errors"),
+    url(r'^sys/users/$', sysadmin_react_fake_view, name="sys_users"),
+    url(r'^sys/users-all/$', sysadmin_react_fake_view, name="sys_users_all"),
+    url(r'^sys/users-admin/$', sysadmin_react_fake_view, name="sys_users_admin"),
+    url(r'^sys/user-info/(?P<email>[^/]+)/$', sysadmin_react_fake_view, name="sys_users"),
     url(r'^sys/work-weixin/departments/$', sysadmin_react_fake_view, name="sys_work_weixin_departments"),
 
     url(r'^client-login/$', client_token_login, name='client_token_login'),
