@@ -655,6 +655,7 @@ urlpatterns = [
     url(r'^sys/device-errors/$', sysadmin_react_fake_view, name="sys_device_errors"),
     url(r'^sys/web-settings/$', sysadmin_react_fake_view, name="sys_web_settings"),
     url(r'^sys/work-weixin/$', sysadmin_react_fake_view, name="sys_work_weixin"),
+    url(r'^sys/work-weixin/departments/$', sysadmin_react_fake_view, name="sys_work_weixin_departments"),
 
     url(r'^client-login/$', client_token_login, name='client_token_login'),
 ]
