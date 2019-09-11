@@ -654,6 +654,9 @@ urlpatterns = [
     url(r'^sys/mobile-devices/$', sysadmin_react_fake_view, name="sys_mobile_devices"),
     url(r'^sys/device-errors/$', sysadmin_react_fake_view, name="sys_device_errors"),
     url(r'^sys/web-settings/$', sysadmin_react_fake_view, name="sys_web_settings"),
+    url(r'^sys/groups/$', sysadmin_react_fake_view, name="sys_groups"),
+    url(r'^sys/groups/(?P<group_id>\d+)/libs/$', sysadmin_react_fake_view, name="sys_groups_libs"),
+    url(r'^sys/groups/(?P<group_id>\d+)/members/$', sysadmin_react_fake_view, name="sys_groups_members"),
     url(r'^sys/work-weixin/$', sysadmin_react_fake_view, name="sys_work_weixin"),
 
     url(r'^client-login/$', client_token_login, name='client_token_login'),

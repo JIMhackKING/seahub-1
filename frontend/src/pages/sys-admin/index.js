@@ -10,6 +10,9 @@ import Info from './info';
 import DesktopDevices from './devices/desktop-devices';
 import MobileDevices from './devices/mobile-devices';
 import DeviceErrors from './devices/devices-errors';
+import Groups from './groups/groups';
+import GroupRepos from './groups/group-repos';
+import GroupMembers from './groups/group-members';
 
 import '../../assets/css/fa-solid.css';
 import '../../assets/css/fa-regular.css';
@@ -73,6 +76,9 @@ class SysAdmin extends React.Component {
             <DesktopDevices path={siteRoot + 'sys/desktop-devices'} />
             <MobileDevices path={siteRoot + 'sys/mobile-devices'} />
             <DeviceErrors path={siteRoot + 'sys/device-errors'} />
+            <Groups path={siteRoot + 'sys/groups'} />
+            <GroupRepos path={siteRoot + 'sys/groups/:groupID/libs'} />
+            <GroupMembers path={siteRoot + 'sys/groups/:groupID/members'} />
             <FileScanRecords
               path={siteRoot + 'sys/file-scan-records'}
               currentTab={currentTab} 
