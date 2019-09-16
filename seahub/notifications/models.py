@@ -31,10 +31,24 @@ from seahub.file_participants.utils import list_file_participants
 logger = logging.getLogger(__name__)
 
 
+class NotificationManager(models.Manager):
+    def create_sys_notification(self, message, is_primary=False):
+        """
+        Creates and saves a User with given username and password.
+        """
+        notification = Notification()
+        notification.message = message
+        notification.primary = is_primary
+        notification.save()
+
+        return notification
+
+
 ########## system notification
 class Notification(models.Model):
     message = models.CharField(max_length=512)
     primary = models.BooleanField(default=False, db_index=True)
+    objects = NotificationManager()
 
 class NotificationForm(ModelForm):
     """
