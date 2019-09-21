@@ -224,6 +224,11 @@ module.exports = {
       require.resolve('react-dev-utils/webpackHotDevClient'),
       paths.appSrc + "/dtable-asset-file-view.js",
     ],
+    sharedDTableRow: [
+      require.resolve('./polyfills'),
+      require.resolve('react-dev-utils/webpackHotDevClient'),
+      paths.appSrc + "/shared-dtable-row.js",
+    ],
   },
 
   output: {

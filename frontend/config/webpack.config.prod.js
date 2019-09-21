@@ -93,6 +93,7 @@ module.exports = {
     search: [require.resolve('./polyfills'), paths.appSrc + "/pages/search"],
     appDTable: [require.resolve('./polyfills'), paths.appSrc + "/app-dtable"],
     dtableAssetFileView: [require.resolve('./polyfills'), paths.appSrc + "/dtable-asset-file-view.js"],
+    sharedDTableRow: [require.resolve('./polyfills'), paths.appSrc + "/shared-dtable-row.js"],
   },
 
   output: {

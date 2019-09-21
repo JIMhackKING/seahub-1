@@ -1,22 +1,26 @@
 # -*- coding: utf-8 -*-
 import os
+import time
+import logging
+from urllib import request as requests
+import jwt
 
-from django.http import Http404, HttpResponseRedirect
+from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.utils.translation import ugettext as _
 from seaserv import seafile_api
 
-from seahub.dtable.models import Workspaces, DTables
+from seahub.dtable.models import Workspaces, DTables, DTableRowShares
 from seahub.utils import normalize_file_path, render_error, render_permission_error, \
      gen_file_get_url, get_file_type_and_ext, gen_inner_file_get_url
 from seahub.auth.decorators import login_required
-from seahub.settings import SHARE_LINK_EXPIRE_DAYS_MIN, SHARE_LINK_EXPIRE_DAYS_MAX, \
-     SHARE_LINK_EXPIRE_DAYS_DEFAULT, DTABLE_SERVER_URL, SEAFILE_COLLAB_SERVER, MEDIA_URL, \
-     FILE_ENCODING_LIST
+from seahub.settings import DTABLE_SERVER_URL, SEAFILE_COLLAB_SERVER, MEDIA_URL, \
+     DTABLE_PRIVATE_KEY
 from seahub.dtable.utils import check_dtable_permission
 from seahub.constants import PERMISSION_ADMIN, PERMISSION_READ_WRITE
 from seahub.views.file import get_file_content
 
+logger = logging.getLogger(__name__)
 
 FILE_TYPE = '.dtable'
 WRITE_PERMISSION_TUPLE = (PERMISSION_READ_WRITE, PERMISSION_ADMIN)
@@ -34,22 +38,16 @@ def dtable_file_view(request, workspace_id, name):
     # resource check
     workspace = Workspaces.objects.get_workspace_by_id(workspace_id)
     if not workspace:
-        raise Http404
+        return render_error(request, 'Workspace does not exist.')
 
     repo_id = workspace.repo_id
     repo = seafile_api.get_repo(repo_id)
     if not repo:
-        raise Http404
+        return render_error(request, 'Library does not exist.')
 
     dtable = DTables.objects.get_dtable(workspace, name)
     if not dtable:
-        return render_error(request, _('Table does not exist'))
-
-    table_file_name = name + FILE_TYPE
-    table_path = normalize_file_path(table_file_name)
-    table_file_id = seafile_api.get_file_id_by_path(repo_id, table_path)
-    if not table_file_id:
-        return render_error(request, _('Table does not exist'))
+        return render_error(request, 'DTable does not exist')
 
     # permission check
     username = request.user.username
@@ -57,13 +55,7 @@ def dtable_file_view(request, workspace_id, name):
         return render_permission_error(request, _('Permission denied.'))
 
     return_dict = {
-        'share_link_expire_days_default': SHARE_LINK_EXPIRE_DAYS_DEFAULT,
-        'share_link_expire_days_min': SHARE_LINK_EXPIRE_DAYS_MIN,
-        'share_link_expire_days_max': SHARE_LINK_EXPIRE_DAYS_MAX,
-        'repo': repo,
         'filename': name,
-        'path': table_path,
-        'filetype': 'dtable',
         'workspace_id': workspace_id,
         'dtable_uuid': dtable.uuid.hex,
         'media_url': MEDIA_URL,
@@ -88,21 +80,21 @@ def dtable_asset_access(request, workspace_id, dtable_id, path):
     # resource check
     workspace = Workspaces.objects.get_workspace_by_id(workspace_id)
     if not workspace:
-        raise Http404
+        return render_error(request, 'Workspace does not exist.')
 
     repo_id = workspace.repo_id
     repo = seafile_api.get_repo(repo_id)
     if not repo:
-        raise Http404
+        return render_error(request, 'Library does not exist.')
 
     dtable = DTables.objects.get_dtable_by_uuid(dtable_id)
     if not dtable:
-        raise Http404
+        return render_error(request, 'DTable does not exist.')
 
     asset_path = normalize_file_path(os.path.join('/asset', dtable_id, path))
     asset_id = seafile_api.get_file_id_by_path(repo_id, asset_path)
     if not asset_id:
-        raise Http404
+        return render_error(request, 'Asset file does not exist.')
 
     # permission check
     username = request.user.username
@@ -176,3 +168,59 @@ def dtable_asset_file_view(request, workspace_id, dtable_id, path):
     }
 
     return render(request, 'dtable_asset_file_view_react.html', return_dict)
+
+
+@login_required
+def dtable_share_links(request, token):
+
+    # resource check
+    dtable_row_share = DTableRowShares.objects.get_dtable_row_share_by_token(token)
+    if not dtable_row_share:
+        return render_error(request, 'DTable row share link does not exist.')
+
+    workspace_id = dtable_row_share.workspace_id
+    workspace = Workspaces.objects.get_workspace_by_id(workspace_id)
+    if not workspace:
+        return render_error(request, 'Workspace does not exist.')
+
+    repo_id = workspace.repo_id
+    repo = seafile_api.get_repo(repo_id)
+    if not repo:
+        return render_error(request, 'Library does not exist.')
+
+    dtable_uuid = dtable_row_share.dtable_uuid
+    dtable = DTables.objects.get_dtable_by_uuid(dtable_uuid)
+    if not dtable:
+        return render_error(request, 'DTable %s does not exist' % dtable_uuid)
+
+    # generate json web token
+    username = request.user.username
+    payload = {
+        'exp': int(time.time()) + 86400 * 3,
+        'dtable_uuid': dtable.uuid.hex,
+        'username': username,
+    }
+
+    try:
+        access_token = jwt.encode(
+            payload, DTABLE_PRIVATE_KEY, algorithm='HS256'
+        )
+    except Exception as e:
+        logger.error(e)
+        return render_error(request, _('Internal Server Error'))
+
+    url = '%s/api/v1/dtables/%s/tables/%s/rows/%s/' % \
+          (DTABLE_SERVER_URL.strip('/'), dtable_uuid, dtable_row_share.table_id, dtable_row_share.row_id)
+    req = requests.Request(url, headers={"Authorization": "Token %s" % access_token.decode()})
+
+    try:
+        res = requests.urlopen(req).read().decode()
+    except Exception as e:
+        logger.error(e)
+        return render_error(request, _('Internal Server Error'))
+
+    return_dict = {
+        'file_content': res,
+    }
+
+    return render(request, 'shared_dtable_row_view_react.html', return_dict)
